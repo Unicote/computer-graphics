@@ -263,6 +263,8 @@ glm::vec3 safe_direction(const glm::vec3& direction) {
 	return glm::length(direction) > 0.0001f ? glm::normalize(direction) : glm::vec3(0, -1, 0);
 }
 
+	// endregion
+
 glm::mat4 model_matrix(const glm::vec3& position, const glm::vec3& rotation, const glm::vec3& scale, const glm::vec3 offset = {}, const glm::vec3 animation_rotation = {}) {
 	constexpr glm::mat4 identity(1.0);
 	const glm::vec3 angles = rotation + animation_rotation;
@@ -273,8 +275,6 @@ glm::mat4 camera_rotation() {
 	constexpr glm::mat4 identity(1.0);
 	return glm::rotate(identity, glm::radians(controls.camera.yaw), glm::vec3(0.0, 1.0, 0.0)) * glm::rotate(identity, glm::radians(controls.camera.pitch), glm::vec3(1.0, 0.0, 0.0));
 }
-
-// endregion
 
 void generate_cube() {
 	for (size_t i = 0; i < std::size(cube_indices); i += 3) {
@@ -533,7 +533,7 @@ bool create_resources() {
 	upload(scene.cone_buffer, cone_vertices, sizeof(cone_vertices));
 	return create_descriptors()
 		&& create_pipeline(scene.lit_pipeline, "shaders/cube.vert.spv", "shaders/cube.frag.spv", VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
-		&& create_pipeline(scene.light_pipeline, "shaders/light.vert.spv", "shaders/light.frag.spv", VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+		&& create_pipeline(scene.light_pipeline, "shaders/light.vert.spv", "shaders/marker.frag.spv", VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
 		&& create_pipeline(scene.cone_pipeline, "shaders/cone.vert.spv", "shaders/light.frag.spv", VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
 }
 

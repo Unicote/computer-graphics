@@ -33,12 +33,18 @@ layout(std430, set = 0, binding = 2) readonly buffer SpotLights {
 
 layout(location = 0) in vec3 in_position;
 
+layout(location = 1) in vec3 in_normal;
+
 layout(location = 0) out vec3 vertex_color;
+layout(location = 1) out vec3 world_position;
+layout(location = 2) out vec3 world_normal;
+layout(location = 3) flat out uint light_index;
 
 const float marker_size = 0.1;
 
 void main() {
     uint index = uint(gl_InstanceIndex);
+    light_index = index;
     vec3 position;
     vec3 color;
     if (index < scene_uniforms.point_light_count) {
@@ -50,6 +56,8 @@ void main() {
         color = spot_lights[index].color;
     }
 
-    gl_Position = scene_uniforms.view_projection * vec4(position + in_position * marker_size, 1.0);
+    world_position = position + in_position * marker_size;
+    world_normal = in_normal;
+    gl_Position = scene_uniforms.view_projection * vec4(world_position, 1.0);
     vertex_color = color / max(max(color.r, max(color.g, color.b)), 0.0001);
 }
