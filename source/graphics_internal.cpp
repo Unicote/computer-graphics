@@ -389,9 +389,13 @@ Context context;
 bool initialize(GLFWwindow* const window) {
 	vkb::InstanceBuilder ib;
 
-	auto ibr = ib.require_api_version(VK_MAKE_VERSION(1, 1, 0))
+	auto ibr = ib.require_api_version(1, 3, 0)
 				 .request_validation_layers()
 				 .build();
+	if (!ibr) {
+		std::cerr << "Failed to initialize Vulkan 1.3: " << ibr.error().message() << '\n';
+		return false;
+	}
 
 	auto vkb_instance = ibr.value();
 	vk_instance = vkb_instance.instance;
@@ -406,7 +410,12 @@ bool initialize(GLFWwindow* const window) {
 
 	vkb::PhysicalDeviceSelector pds(vkb_instance, vk_surface);
 
+	const VkPhysicalDeviceVulkan13Features features13 = {
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+		.dynamicRendering = VK_TRUE,
+	};
 	auto pds_result = pds.prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
+					 .set_required_features_13(features13)
 						 .require_present()
 						 .select();
 	if (!pds_result) {
@@ -567,6 +576,14 @@ bool initialize(GLFWwindow* const window) {
 		.pColorAttachments = &render_pass_color_attachment,
 		.pDepthStencilAttachment = &render_pass_depth_attachment,
 	};
+	const VkSubpassDependency acquire_dependency = {
+		.srcSubpass = VK_SUBPASS_EXTERNAL,
+		.dstSubpass = 0,
+		.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+			| VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+		.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+	};
 
 	const VkRenderPassCreateInfo render_pass = {
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
@@ -574,6 +591,8 @@ bool initialize(GLFWwindow* const window) {
 		.pAttachments = render_pass_attachments,
 		.subpassCount = 1,
 		.pSubpasses = &render_pass_subpass,
+		.dependencyCount = 1,
+		.pDependencies = &acquire_dependency,
 	};
 
 	if (vkCreateRenderPass(context.device, &render_pass, nullptr, &context.render_pass) != VK_SUCCESS) {
