@@ -33,36 +33,65 @@ layout(std430, set = 0, binding = 2) readonly buffer SpotLights {
 
 layout(std140, set = 1, binding = 0) uniform ModelUniform {
     mat4 model;
-    vec3 albedo;
     vec3 specular;
     float alpha;
+    vec2 uv_scale;
 } model_uniforms;
+
+layout(set = 1, binding = 1) uniform sampler2D albedo_texture;
+layout(set = 1, binding = 2) uniform sampler2D specular_texture;
+layout(set = 1, binding = 3) uniform sampler2D emissive_texture;
+
+layout(push_constant) uniform PushConstants {
+    float time;
+    uint animated_sampling;
+} push_constants;
 
 layout(location = 0) in vec3 world_position;
 layout(location = 1) in vec3 world_normal;
+layout(location = 2) in vec2 uv;
 
 layout(location = 0) out vec4 out_color;
 
-vec3 blinn_phong(const vec3 light_direction, const vec3 light_color, const vec3 normal, const vec3 view_direction) {
+vec3 sample_animated(sampler2D image, const vec2 coordinates) {
+    if (push_constants.animated_sampling == 0) return texture(image, coordinates).rgb;
+
+    const float t = push_constants.time;
+    const vec2 flow = coordinates + vec2(0.1 * t, 0.05 * sin(t));
+    const float angle = 0.3 * t;
+    const mat2 rotation = mat2(cos(angle), sin(angle), -sin(angle), cos(angle));
+    const vec2 swirl = rotation * (coordinates - 0.5) * 1.5 + 0.5;
+
+    const vec3 first = texture(image, flow).rgb;
+    const vec3 second = texture(image, swirl).rgb;
+    const vec3 modulation = 0.75 + 0.25 * vec3(sin(t), sin(t + 2.094), sin(t + 4.189));
+    return mix(first, second, 0.5 + 0.5 * sin(0.7 * t)) * modulation;
+}
+
+vec3 blinn_phong(const vec3 light_direction, const vec3 light_color, const vec3 normal, const vec3 view_direction, const vec3 albedo, const vec3 specular) {
     const vec3 h = normalize(light_direction + view_direction);
     const float cos_theta = max(dot(normal, light_direction), 0.0);
     const float cos_phi = max(dot(normal, h), 0.0);
     const float highlight = cos_theta > 0.0 ? pow(cos_phi, model_uniforms.alpha) : 0.0;
-    return light_color * (cos_theta * model_uniforms.albedo + model_uniforms.specular * highlight);
+    return light_color * (cos_theta * albedo + specular * highlight);
 }
 
 void main() {
     const vec3 normal = normalize(world_normal);
     const vec3 view_direction = normalize(scene_uniforms.camera_position - world_position);
 
-    vec3 color = scene_uniforms.ambient_light * model_uniforms.albedo;
+    const vec3 albedo = sample_animated(albedo_texture, uv);
+    const vec3 specular = model_uniforms.specular * texture(specular_texture, uv).rgb;
+    const vec3 emissive = sample_animated(emissive_texture, uv);
 
-    color += blinn_phong(-normalize(scene_uniforms.directional_light_direction), scene_uniforms.directional_light_color, normal, view_direction);
+    vec3 color = scene_uniforms.ambient_light * albedo;
+
+    color += blinn_phong(-normalize(scene_uniforms.directional_light_direction), scene_uniforms.directional_light_color, normal, view_direction, albedo, specular);
 
     for (uint i = 0; i < scene_uniforms.point_light_count; ++i) {
         const vec3 to_light = point_lights[i].position - world_position;
         const float distance_squared = max(dot(to_light, to_light), 0.0001);
-        color += blinn_phong(to_light * inversesqrt(distance_squared), point_lights[i].color / distance_squared, normal, view_direction);
+        color += blinn_phong(to_light * inversesqrt(distance_squared), point_lights[i].color / distance_squared, normal, view_direction, albedo, specular);
     }
 
     for (uint i = 0; i < scene_uniforms.spot_light_count; ++i) {
@@ -76,8 +105,10 @@ void main() {
         const float cos_outer = cos(light.outer_angle);
         const float edge = clamp((cos_angle - cos_outer) / max(cos_inner - cos_outer, 0.0001), 0.0, 1.0);
 
-        color += blinn_phong(light_direction, light.color * edge / distance_squared, normal, view_direction);
+        color += blinn_phong(light_direction, light.color * edge / distance_squared, normal, view_direction, albedo, specular);
     }
+
+    color += emissive;
 
     out_color = vec4(color, 1.0);
 }

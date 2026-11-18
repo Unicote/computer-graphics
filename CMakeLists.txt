@@ -55,6 +55,12 @@ FetchContent_Declare(
 	GIT_SHALLOW TRUE
 )
 
+FetchContent_Declare(
+	lodepng
+	GIT_REPOSITORY https://github.com/lvandeve/lodepng.git
+	GIT_TAG e584a8490db1b76b81bf298c11c09d3b55d9c270
+)
+
 find_package(Vulkan REQUIRED)
 
 set(GLFW_LIBRARY_TYPE STATIC)
@@ -68,6 +74,7 @@ FetchContent_MakeAvailable(
 	VulkanMemoryAllocator
 	imgui
 	glm
+	lodepng
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -80,8 +87,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_include_directories(${PROJECT_NAME} PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${lodepng_SOURCE_DIR})
 target_sources(${PROJECT_NAME} PRIVATE
+	${lodepng_SOURCE_DIR}/lodepng.cpp
 	${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
 	${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
 	${imgui_SOURCE_DIR}/imgui.cpp
