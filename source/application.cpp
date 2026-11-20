@@ -46,6 +46,7 @@ struct ModelUniforms {
 struct PushConstants {
 	float time;
 	uint32_t animated_sampling;
+	uint32_t show_sun_shadow_underneath;
 };
 
 struct PointLight {
@@ -196,6 +197,8 @@ struct Object {
 	glm::vec2 uv_scale;
 	int material;
 	bool animated_sampling;
+	bool casts_shadow = true;
+	bool show_sun_shadow_underneath = false;
 };
 
 struct PointLightSettings {
@@ -239,7 +242,7 @@ struct Settings {
 	Object objects[object_count] = {
 		{ .name = "Primary cube", .position = {}, .rotation = {}, .scale = glm::vec3(1), .specular = glm::vec3(0.6), .alpha = 32, .uv_scale = glm::vec2(1), .material = 2, .animated_sampling = true },
 		{ .name = "Second cube", .position = {3.5, -2, 0}, .rotation = {}, .scale = glm::vec3(0.5), .specular = glm::vec3(1), .alpha = 128, .uv_scale = glm::vec2(1), .material = 1, .animated_sampling = false },
-		{ .name = "Floor", .position = {0, -2.6, 0}, .rotation = {}, .scale = {10, 0.1, 10}, .specular = glm::vec3(0.2), .alpha = 8, .uv_scale = glm::vec2(5), .material = 3, .animated_sampling = false },
+		{ .name = "Floor", .position = {0, -2.6, 0}, .rotation = {}, .scale = {10, 0.1, 10}, .specular = glm::vec3(0.2), .alpha = 8, .uv_scale = glm::vec2(5), .material = 3, .animated_sampling = false, .casts_shadow = false, .show_sun_shadow_underneath = true },
 		{ .name = "Wall", .position = {0, 1.5, -6}, .rotation = {}, .scale = {10, 4, 0.1}, .specular = glm::vec3(0.5), .alpha = 16, .uv_scale = {5, 2}, .material = 0, .animated_sampling = false },
 	};
 
@@ -248,6 +251,7 @@ struct Settings {
 	};
 	std::vector<SpotLightSettings> spot_lights = {
 		{ .position = {-3, 4, 3}, .direction = {0.5, -1, -0.6}, .color = {1, 0.85, 0.6}, .intensity = 30 },
+		{ .position = {0, -6, 0}, .direction = {0, 1, 0}, .color = {1, 1, 1}, .intensity = 24, .inner_angle = 40, .outer_angle = 55 },
 	};
 	bool show_lights = false;
 };
@@ -1127,6 +1131,7 @@ void render_shadow_map(VkCommandBuffer commands, const Texture& map, const glm::
 		vkCmdBindIndexBuffer(commands, scene.cube_index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdPushConstants(commands, scene.shadow_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(light_view_projection), glm::value_ptr(light_view_projection));
 		for (uint32_t i = 0; i < object_count; ++i) {
+			if (!controls.objects[i].casts_shadow) continue;
 			const auto dynamic_offset = static_cast<uint32_t>(i * scene.model_uniform_stride);
 			vkCmdBindDescriptorSets(commands, VK_PIPELINE_BIND_POINT_GRAPHICS, scene.shadow_pipeline_layout,
 				0, 1, &scene.material_descriptor_sets[controls.objects[i].material], 1, &dynamic_offset);
@@ -1321,7 +1326,11 @@ void render(const graphics::internal::FrameData& fd) {
 		const Object& object = controls.objects[i];
 		const auto dynamic_offset = static_cast<uint32_t>(i * scene.model_uniform_stride);
 		vkCmdBindDescriptorSets(fd.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, scene.pipeline_layout, 1, 1, &scene.material_descriptor_sets[object.material], 1, &dynamic_offset);
-		const PushConstants push_constants{ .time = controls.sampling_time, .animated_sampling = object.animated_sampling };
+		const PushConstants push_constants{
+			.time = controls.sampling_time,
+			.animated_sampling = object.animated_sampling,
+			.show_sun_shadow_underneath = object.show_sun_shadow_underneath,
+		};
 		vkCmdPushConstants(fd.command_buffer, scene.pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push_constants), &push_constants);
 		vkCmdDrawIndexed(fd.command_buffer, std::size(cube_indices), 1, 0, 0, 0);
 	}

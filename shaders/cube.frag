@@ -52,6 +52,7 @@ layout(set = 1, binding = 3) uniform sampler2D emissive_texture;
 layout(push_constant) uniform PushConstants {
     float time;
     uint animated_sampling;
+    uint show_sun_shadow_underneath;
 } push_constants;
 
 layout(location = 0) in vec3 world_position;
@@ -132,7 +133,8 @@ void main() {
 
         if (edge <= 0.0) continue;
         const float spot_visibility = i == 0 && scene_uniforms.spot_shadows_enabled != 0 ? shadow_visibility(spot_shadow_map, scene_uniforms.spot_view_projection) : 1.0;
-        color += spot_visibility * blinn_phong(light_direction, light.color * edge / distance_squared, normal, view_direction, albedo, specular);
+        const float floor_shadow = push_constants.show_sun_shadow_underneath != 0 && normal.y < -0.5 ? sun_visibility : 1.0;
+        color += floor_shadow * spot_visibility * blinn_phong(light_direction, light.color * edge / distance_squared, normal, view_direction, albedo, specular);
     }
 
     color += emissive;
